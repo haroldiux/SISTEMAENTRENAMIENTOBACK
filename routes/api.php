@@ -37,7 +37,24 @@ use App\Http\Controllers\{
     DuracionController,
     CasoTratamientoController,
     ResolucionTratamientoController,
+    DashboardController,
+    AdminDashboardController,
+    DocenteDashboardController
 };
+
+// ====== RUTAS DEL DASHBOARD ======
+Route::middleware('auth:sanctum')->group(function () {
+    // Dashboard general (funciona para cualquier usuario autenticado)
+    Route::get('/dashboard', [DashboardController::class, 'index']);
+
+    // Dashboard específico para administradores
+    Route::get('/dashboard/admin', [AdminDashboardController::class, 'index'])
+        ->middleware('role:ADMINISTRADOR');
+
+    // Dashboard específico para docentes
+    Route::get('/dashboard/docente', [DocenteDashboardController::class, 'index'])
+        ->middleware('role:DOCENTE');
+});
 
 //RUTAS PARA EL MENU CREAR CASO
 Route::apiResource('materias', MateriaController::class)->only(['index', 'store', 'update']);
@@ -84,7 +101,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/evaluaciones/{evaluacion}/caso', [EvaluacionController::class, 'getCasoEstudiante']);
     Route::post('/evaluaciones/{evaluacion}/completar', [EvaluacionController::class, 'marcarCompletada']);
     Route::get('/evaluaciones/{id}/caso-estudiante', [EvaluacionController::class, 'getCasoEvaluacionEstudiante']);
-      Route::get('/casos/{caso}/diagnosticos', [CasoController::class, 'getDiagnosticosAleatorios']);
+    Route::get('/casos/{caso}/diagnosticos', [CasoController::class, 'getDiagnosticosAleatorios']);
+
     // Rutas para importar usuarios desde Excel (solo para administradores)
     Route::middleware('role:ADMINISTRADOR')->group(function () {
         Route::post('/importar-usuarios/preview', [ImportarUsuariosController::class, 'preview']);
