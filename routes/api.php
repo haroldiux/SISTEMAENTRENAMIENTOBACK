@@ -39,7 +39,10 @@ use App\Http\Controllers\{
     ResolucionTratamientoController,
     DashboardController,
     AdminDashboardController,
-    DocenteDashboardController
+    DocenteDashboardController,
+    EstudianteDashboardController,
+    ExamenComplementarioController,
+    EvaluacionEstudianteController
 };
 
 // ====== RUTAS DEL DASHBOARD ======
@@ -54,6 +57,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Dashboard específico para docentes
     Route::get('/dashboard/docente', [DocenteDashboardController::class, 'index'])
         ->middleware('role:DOCENTE');
+    Route::get('/dashboard/estudiante', [EstudianteDashboardController::class, 'index'])
+        ->middleware('role:ESTUDIANTE');
 });
 
 //RUTAS PARA EL MENU CREAR CASO
@@ -209,5 +214,17 @@ Route::prefix('tratamientos')->group(function () {
                 ->limit(10)
                 ->get(),
         ]);
+    });
+
+    // ====== RUTAS PARA EL DASHBOARD DE ESTUDIANTE ======
+    Route::middleware(['auth:sanctum', 'role:ESTUDIANTE'])->prefix('estudiante')->group(function () {
+        // Dashboard específico para estudiantes (ya debe existir si tienes un composable general)
+        // Rutas adicionales específicas para el dashboard de estudiante
+        Route::get('/evaluaciones/pendientes', [EvaluacionEstudianteController::class, 'getPendientes']);
+        Route::get('/casos/historial', [ResolucionController::class, 'getHistorialCasos']);
+        Route::get('/examenes-complementarios', [ExamenComplementarioController::class, 'getExamenesEstudiante']);
+
+        // Ver detalles de un examen complementario específico
+        Route::get('/examenes-complementarios/{id}', [ExamenComplementarioController::class, 'show']);
     });
 });

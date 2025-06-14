@@ -10,7 +10,9 @@ use App\Models\ResolucionManifestacion;
 use App\Models\EvaluacionEstudiante;
 use App\Models\EvaluacionCaso;
 use App\Models\Caso;
+use App\Models\Gestion;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class ResolucionController extends Controller
@@ -961,6 +963,74 @@ class ResolucionController extends Controller
             return response()->json([
                 'error' => 'Error al obtener resoluciones',
                 'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getHistorialCasos()
+    {
+        try {
+            $user = Auth::user();
+            $estudiante = DB::table('estudiantes')->where('user_id', $user->id)->first();
+
+            if (!$estudiante) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no es un estudiante'
+                ], 403);
+            }
+
+            // Obtener gestión activa
+            $gestionActiva = Gestion::where('estado', 1)->first();
+
+            if (!$gestionActiva) {
+                return response()->json([
+                    'success' => true,
+                    'data' => []
+                ]);
+            }
+
+            // Obtener historial de casos resueltos
+            $historialCasos = DB::table('casos')
+                ->select(
+                    'casos.id',
+                    'casos.titulo',
+                    'casos.nivel_dificultad',
+                    'casos.materia_id',
+                    'resolucions.puntaje',
+                    'resolucions.fecha_resolucion'
+                )
+                ->join('resolucions', 'casos.id', '=', 'resolucions.caso_id')
+                ->where('resolucions.estudiante_id', $estudiante->id)
+                ->where('resolucions.gestion_id', $gestionActiva->id)
+                ->orderBy('resolucions.fecha_resolucion', 'desc')
+                ->get();
+
+            // Obtener información de materias para cada caso
+            $materiasIds = $historialCasos->pluck('materia_id')->unique();
+            $materias = DB::table('materias')
+                ->whereIn('id', $materiasIds)
+                ->get()
+                ->keyBy('id');
+
+            // Añadir nombre de materia a cada caso
+            $historialCasos = $historialCasos->map(function ($caso) use ($materias) {
+                $caso->materia_nombre = $materias[$caso->materia_id]->nombre ?? 'Sin materia';
+                return $caso;
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $historialCasos
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error en historial de casos: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener historial de casos',
+                'error' => $e->getMessage(),
+                'trace' => env('APP_DEBUG', false) ? $e->getTraceAsString() : null
             ], 500);
         }
     }

@@ -55,11 +55,13 @@ class DashboardController extends Controller
             } elseif ($user->role->nombre === 'ESTUDIANTE') {
                 $estudiante = $user->estudiante;
                 if ($estudiante) {
+                    // CORREGIDO:
                     $data['evaluaciones_pendientes'] = \App\Models\EvaluacionEstudiante::where('estudiante_id', $estudiante->id)
-                        ->where('estado', 'pendiente')
+                        ->where('completado', 0) // 0 = no completado
                         ->count();
+
                     $data['evaluaciones_completadas'] = \App\Models\EvaluacionEstudiante::where('estudiante_id', $estudiante->id)
-                        ->where('estado', 'completada')
+                        ->where('completado', 1) // 1 = completado
                         ->count();
                 } else {
                     $data['evaluaciones_pendientes'] = 0;
@@ -71,7 +73,6 @@ class DashboardController extends Controller
                 'success' => true,
                 'data' => $data
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error en dashboard: ' . $e->getMessage());
             return response()->json([
