@@ -46,6 +46,10 @@ class Grupo extends Model
     public function estudiantes()
     {
         return $this->belongsToMany(Estudiante::class, 'inscripcions', 'grupo_id', 'estudiante_id')
-                    ->withTimestamps();
+            ->withTimestamps();
+    }
+    public function inscripciones()
+    {
+        return $this->hasMany(Inscripcion::class);
     }
 }

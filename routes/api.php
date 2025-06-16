@@ -45,6 +45,7 @@ use App\Http\Controllers\{
     EvaluacionEstudianteController
 };
 
+
 // ====== RUTAS DEL DASHBOARD ======
 Route::middleware('auth:sanctum')->group(function () {
     // Dashboard general (funciona para cualquier usuario autenticado)
@@ -96,10 +97,13 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
     // Nueva ruta para cambiar contraseña en primer inicio de sesión
     Route::post('/cambiar-contrasena-inicial', [CambioContrasenaController::class, 'cambiarContrasenaInicial']);
-
+    Route::get('/docentes/grupos', [GrupoController::class, 'getGruposDocente']);
     Route::post('/completar-perfil-docente', [DocenteController::class, 'completarPerfil']);
     Route::post('/completar-perfil-estudiante', [EstudianteController::class, 'completarPerfil']);
-
+    // Rutas para el dashboard mejorado
+    Route::get('/casos-por-dificultad', [DocenteDashboardController::class, 'casosPorDificultad']);
+    Route::get('/evaluaciones/estado', [DocenteDashboardController::class, 'estadoEvaluaciones']);
+    Route::get('/casos/recientes', [DocenteDashboardController::class, 'casosRecientes']);
     Route::get('/casos/disponibles', [EvaluacionController::class, 'getCasosDisponibles']);
     Route::post('/evaluaciones', [EvaluacionController::class, 'store']);
     Route::get('/evaluaciones/pendientes', [EvaluacionController::class, 'getPendientesEstudiante']);
@@ -107,7 +111,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/evaluaciones/{evaluacion}/completar', [EvaluacionController::class, 'marcarCompletada']);
     Route::get('/evaluaciones/{id}/caso-estudiante', [EvaluacionController::class, 'getCasoEvaluacionEstudiante']);
     Route::get('/casos/{caso}/diagnosticos', [CasoController::class, 'getDiagnosticosAleatorios']);
+    // Rutas para evaluaciones del docente
+    Route::middleware(['auth:sanctum', 'role:DOCENTE'])->group(function () {
 
+
+        // Ruta para eliminar evaluación (si no existe)
+        Route::delete('/evaluaciones/{id}', [EvaluacionController::class, 'destroy']);
+    });
+    Route::get('/evaluaciones/docente', [EvaluacionController::class, 'getDocenteEvaluaciones']);
+    Route::get('/evaluaciones/{id}/estudiantes', [EvaluacionController::class, 'getEstudiantesCalificaciones']);
     // Rutas para importar usuarios desde Excel (solo para administradores)
     Route::middleware('role:ADMINISTRADOR')->group(function () {
         Route::post('/importar-usuarios/preview', [ImportarUsuariosController::class, 'preview']);
@@ -119,6 +131,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // Rutas públicas para descargar plantillas (sin middleware de autenticación)
     Route::get('/plantillas/download/{tipo}', [ImportarUsuariosController::class, 'descargarPlantillaPublica'])
         ->where('tipo', 'estudiantes|docentes');
+
+    Route::get('/dashboard/evaluaciones', [DocenteDashboardController::class, 'getEvaluacionesDashboard']);
+    Route::get('/dashboard/grupos', [DocenteDashboardController::class, 'getGruposDashboard']);
+    Route::get('/dashboard/casos-por-dificultad', [DocenteDashboardController::class, 'casosPorDificultad']);
+    Route::get('/dashboard/evaluaciones/estado', [DocenteDashboardController::class, 'estadoEvaluaciones']);
+    Route::get('/dashboard/casos/recientes', [DocenteDashboardController::class, 'casosRecientes']);
 });
 
 // Rutas para docentes
@@ -179,6 +197,15 @@ Route::get('casos/{caso}/tratamientos', [CasoTratamientoController::class, 'inde
 
 // Rutas para tratamientos de resolución
 Route::apiResource('resolucion-tratamientos', ResolucionTratamientoController::class);
+
+
+
+
+// Ruta para probar autenticación (sin middleware)
+Route::get('/test-auth', [EvaluacionController::class, 'testAuth']);
+
+// Ruta para probar autenticación (con middleware)
+Route::middleware('auth:sanctum')->get('/test-auth-protected', [EvaluacionController::class, 'testAuth']);
 
 // Rutas adicionales específicas
 Route::prefix('tratamientos')->group(function () {

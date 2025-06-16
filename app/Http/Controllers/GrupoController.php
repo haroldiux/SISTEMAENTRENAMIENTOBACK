@@ -11,6 +11,22 @@ use Illuminate\Support\Facades\Log;
 
 class GrupoController extends Controller
 {
+
+    public function getGruposDocente(Request $request)
+    {
+        // Obtener el ID del docente del usuario autenticado
+        $docenteId = $request->user()->docente->id;
+
+        // Obtener grupos con relaciones necesarias
+        $grupos = Grupo::with(['materia', 'gestion', 'inscripciones.estudiante'])
+            ->where('docente_id', $docenteId)
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'grupos' => $grupos
+        ]);
+    }
     /**
      * Obtener todos los grupos por materia y gestión
      */

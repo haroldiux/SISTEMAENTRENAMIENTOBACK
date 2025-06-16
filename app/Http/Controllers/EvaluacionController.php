@@ -77,7 +77,64 @@ class EvaluacionController extends Controller
             'evaluaciones' => $evaluaciones
         ]);
     }
+    /**
+     * Obtiene todas las evaluaciones creadas por el docente autenticado
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getDocenteEvaluaciones()
+    {
+        // Verificar si hay un usuario autenticado
+        if (!auth()->check()) {
+            return response()->json([
+                'message' => 'No hay un usuario autenticado',
+                'error' => 'authentication_required'
+            ], 401);
+        }
 
+        // Verificar si el usuario tiene un docente asociado
+        if (!auth()->user()->docente) {
+            return response()->json([
+                'message' => 'El usuario no tiene un perfil de docente asociado',
+                'error' => 'docente_not_found',
+                'user_id' => auth()->id(),
+                'role_id' => auth()->user()->role_id ?? null
+            ], 403);
+        }
+
+        // Obtener el ID del docente autenticado
+        $docenteId = auth()->user()->docente->id;
+
+        // Obtener todas las evaluaciones creadas por este docente
+        $evaluaciones = Evaluacion::with(['materia', 'grupo', 'gestion'])
+            ->where('docente_id', $docenteId)
+            ->orderBy('fecha_inicio', 'desc')
+            ->get();
+
+        // Calcular estadísticas para cada evaluación
+        foreach ($evaluaciones as $evaluacion) {
+            // Contar estudiantes asignados a esta evaluación
+            $totalEstudiantes = EvaluacionEstudiante::whereHas('evaluacionCaso', function ($query) use ($evaluacion) {
+                $query->where('evaluacion_id', $evaluacion->id);
+            })->count();
+
+            // Contar estudiantes que han completado la evaluación
+            $completados = EvaluacionEstudiante::whereHas('evaluacionCaso', function ($query) use ($evaluacion) {
+                $query->where('evaluacion_id', $evaluacion->id);
+            })->where('completado', true)->count();
+
+            // Agregar estadísticas al objeto de evaluación
+            $evaluacion->estadisticas = [
+                'total_estudiantes' => $totalEstudiantes,
+                'completados' => $completados,
+                'pendientes' => $totalEstudiantes - $completados
+            ];
+        }
+
+        return response()->json([
+            'evaluaciones' => $evaluaciones
+        ]);
+    }
     /**
      * Crear una nueva evaluación
      */
@@ -689,6 +746,112 @@ class EvaluacionController extends Controller
             'caso' => $caso,
             'intentada' => $asignacion->intentada,
             'completada' => $asignacion->completado
+        ]);
+    }
+
+    /**
+     * Obtiene los estudiantes y sus calificaciones para una evaluación específica
+     *
+     * @param int $id ID de la evaluación
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getEstudiantesCalificaciones($id)
+    {
+        // Buscar la evaluación
+        $evaluacion = Evaluacion::with(['materia', 'grupo', 'gestion'])
+            ->findOrFail($id);
+
+        // Verificar que el docente autenticado sea el propietario de la evaluación
+        if (auth()->user()->docente->id != $evaluacion->docente_id) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        // Obtener los estudiantes inscritos en el grupo
+        $estudiantes = Estudiante::whereHas('inscripciones', function ($query) use ($evaluacion) {
+            $query->where('grupo_id', $evaluacion->grupo_id);
+        })->get();
+
+        $resultados = [];
+
+        foreach ($estudiantes as $estudiante) {
+            $resultado = [
+                'id' => $estudiante->id,
+                'codigo' => $estudiante->user->name, // Asumiendo que el código está en name
+                'nombre_completo' => $estudiante->nombres . ' ' . $estudiante->apellido1 . ' ' . $estudiante->apellido2,
+                'evaluaciones' => []
+            ];
+
+            // Obtener todos los casos de esta evaluación
+            $evaluacionCasos = EvaluacionCaso::where('evaluacion_id', $evaluacion->id)->get();
+
+            foreach ($evaluacionCasos as $evaluacionCaso) {
+                $evaluacionEstudiante = EvaluacionEstudiante::where('evaluacion_caso_id', $evaluacionCaso->id)
+                    ->where('estudiante_id', $estudiante->id)
+                    ->first();
+
+                $caso = Caso::find($evaluacionCaso->caso_id);
+
+                $resultadoCaso = [
+                    'caso_id' => $evaluacionCaso->caso_id,
+                    'caso_titulo' => $caso ? $caso->titulo : 'Sin título',
+                    'estado' => 'No realizada',
+                    'nota' => null,
+                    'fecha_intento' => null
+                ];
+
+                if ($evaluacionEstudiante) {
+                    if ($evaluacionEstudiante->completado) {
+                        // Buscar la resolución para obtener el puntaje
+                        $resolucion = Resolucion::where('estudiante_id', $estudiante->id)
+                            ->where('caso_id', $evaluacionCaso->caso_id)
+                            ->where('gestion_id', $evaluacion->gestion_id)
+                            ->where('tipo', 1) // Asumiendo que tipo 1 es para evaluaciones
+                            ->orderBy('fecha_resolucion', 'desc')
+                            ->first();
+
+                        $resultadoCaso['estado'] = 'Completada';
+                        $resultadoCaso['nota'] = $resolucion ? $resolucion->puntaje : 0;
+                        $resultadoCaso['fecha_intento'] = $evaluacionEstudiante->fecha_intento;
+                    } else if ($evaluacionEstudiante->intentada) {
+                        $resultadoCaso['estado'] = 'Iniciada';
+                        $resultadoCaso['fecha_intento'] = $evaluacionEstudiante->fecha_intento;
+                    }
+                }
+
+                $resultado['evaluaciones'][] = $resultadoCaso;
+            }
+
+            $resultados[] = $resultado;
+        }
+
+        return response()->json([
+            'evaluacion' => $evaluacion,
+            'estudiantes' => $resultados
+        ]);
+    }
+
+
+    /**
+     * Método de diagnóstico para verificar la autenticación
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function testAuth()
+    {
+        return response()->json([
+            'authenticated' => auth()->check(),
+            'user' => auth()->check() ? [
+                'id' => auth()->id(),
+                'name' => auth()->user()->name,
+                'email' => auth()->user()->email,
+                'role_id' => auth()->user()->role_id,
+                'has_docente' => auth()->user()->docente ? true : false,
+                'docente_id' => auth()->user()->docente ? auth()->user()->docente->id : null,
+                'token_present' => request()->bearerToken() ? true : false,
+            ] : null,
+            'session_active' => session()->isStarted(),
+            'server_time' => now()->toDateTimeString(),
+            'timezone' => config('app.timezone'),
         ]);
     }
 }
