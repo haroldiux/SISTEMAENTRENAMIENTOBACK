@@ -42,7 +42,8 @@ use App\Http\Controllers\{
     DocenteDashboardController,
     EstudianteDashboardController,
     ExamenComplementarioController,
-    EvaluacionEstudianteController
+    EvaluacionEstudianteController,
+    ReportesController,
 };
 
 
@@ -137,6 +138,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/dashboard/casos-por-dificultad', [DocenteDashboardController::class, 'casosPorDificultad']);
     Route::get('/dashboard/evaluaciones/estado', [DocenteDashboardController::class, 'estadoEvaluaciones']);
     Route::get('/dashboard/casos/recientes', [DocenteDashboardController::class, 'casosRecientes']);
+
+    Route::middleware(['auth:sanctum', 'role:ADMINISTRADOR'])->prefix('dashboard')->group(function () {
+        Route::get('/admin', [AdminDashboardController::class, 'index']);
+        Route::get('/casos-por-dificultad', [AdminDashboardController::class, 'casosPorDificultad']);
+        Route::get('/casos-por-materia', [AdminDashboardController::class, 'casosPorMateria']);
+        Route::get('/casos/recientes', [AdminDashboardController::class, 'casosRecientes']);
+        Route::get('/evaluaciones/estado', [AdminDashboardController::class, 'estadoEvaluaciones']);
+        Route::get('/grupos', [AdminDashboardController::class, 'getGruposDashboard']);
+        Route::get('/evaluaciones', [AdminDashboardController::class, 'getEvaluacionesDashboard']);
+    });
+    // Rutas para reportes (solo para administradores)
+    Route::middleware(['auth:sanctum', 'role:ADMINISTRADOR'])->prefix('reportes')->group(function () {
+        Route::get('/usuarios', [ReportesController::class, 'usuarios']);
+        Route::get('/actividad-sistema', [ReportesController::class, 'actividadSistema']);
+    });
 });
 
 // Rutas para docentes
